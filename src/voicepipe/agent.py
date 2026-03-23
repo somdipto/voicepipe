@@ -161,7 +161,7 @@ class VoiceAgent:
                 sd.play(audio_np, 24000)
                 sd.wait()
             except ImportError:
-                pass
+                logger.warning("sounddevice not available for playback. Audio not played.")
             
             logger.info(f"{self.name}: {text}")
         except Exception as e:

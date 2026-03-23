@@ -245,16 +245,23 @@ def check_stt_available() -> dict:
         r = subprocess.run(["which", "whisper-cli"], capture_output=True)
         if r.returncode == 0:
             result["whisper_found"] = True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Error checking whisper: {e}")
     
     # Check ffmpeg
     try:
         r = subprocess.run(["which", "ffmpeg"], capture_output=True)
         if r.returncode == 0:
             result["ffmpeg_found"] = True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Error checking ffmpeg: {e}")
+    
+    # Check default model
+    cache_dir = Path.home() / ".voicepipe" / "models"
+    if (cache_dir / "ggml-tiny.en.bin").exists():
+        result["model_found"] = True
+    
+    return result
     
     # Check default model
     cache_dir = Path.home() / ".voicepipe" / "models"

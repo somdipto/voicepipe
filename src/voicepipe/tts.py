@@ -264,13 +264,21 @@ class TTSEngine:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with wave.open(str(output_path), "wb") as f:
-            f.setnchannels(1)
-            f.setsampwidth(2)
-            f.setframerate(16000)
+        # Write audio - handle both raw PCM and WAV format
+        with open(output_path, 'wb') as f:
             if audio[:4] == b"RIFF":
+                # Has WAV header, write without header
                 f.write(audio[44:])
             else:
+                # Raw PCM - create WAV header manually
+                import struct
+                data_size = len(audio)
+                f.write(b'RIFF')
+                f.write(struct.pack('<I', 36 + data_size))
+                f.write(b'WAVEfmt ')
+                f.write(struct.pack('<HHIIHH', 1, 1, 16000, 32000, 2, 16))
+                f.write(b'data')
+                f.write(struct.pack('<I', data_size))
                 f.write(audio)
         
         return str(output_path)
@@ -302,19 +310,19 @@ def check_tts_available() -> Dict[str, bool]:
     try:
         import gtts
         backends["gtts"] = True
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug(f"gTTS not available: {e}")
     
     try:
         import edge_tts
         backends["edge"] = True
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug(f"edge-tts not available: {e}")
     
     try:
         import pyttsx3
         backends["pyttsx3"] = True
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug(f"pyttsx3 not available: {e}")
     
     return backends
