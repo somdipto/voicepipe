@@ -1,105 +1,98 @@
 """
-TTS Engine - KittenTTS wrapper
+TTS Engine - Text to Speech
+
+Supports multiple backends:
+1. gTTS (Google TTS) - requires internet, free
+2. pyttsx3 - offline, system TTS
+3. edge-tts - Microsoft Edge TTS, free, good quality
 """
 import os
 import subprocess
 import logging
 import wave
-import numpy as np
+import io
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 logger = logging.getLogger("voicepipe.tts")
 
-# KittenTTS model configurations
-KITTEN_MODELS = {
-    "nano": {
-        "name": "KittenML/kitten-tts-nano-0.8-int8",
-        "size": "25 MB",
-        "params": "15M",
-    },
-    "micro": {
-        "name": "KittenML/kitten-tts-micro-0.8",
-        "size": "41 MB",
-        "params": "40M",
-    },
-    "mini": {
-        "name": "KittenML/kitten-tts-mini-0.8",
-        "size": "80 MB",
-        "params": "80M",
-    },
-}
+# Available voices for each backend
+GTTS_VOICES = ["en"]  # Single language, accent varies
 
-AVAILABLE_VOICES = ["Bella", "Jasper", "Luna", "Bruno", "Rosie", "Hugo", "Kiki", "Leo"]
+# Edge TTS voices
+EDGE_VOICES = {
+    "en": ["en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural"],
+    "en-GB": ["en-GB-SoniaNeural", "en-GB-RyanNeural"],
+}
 
 
 class TTSEngine:
     """
-    Text-to-Speech engine using KittenTTS.
+    Text-to-Speech engine with multiple backend support.
+    
+    Usage:
+        from voicepipe.tts import TTSEngine
+        tts = TTSEngine()
+        audio = tts.speak("Hello world")
     """
     
     def __init__(
         self,
-        model: str = "nano",
-        voice: str = "Bella",
+        model: str = "gtts",  # gtts, pyttsx3, edge
+        voice: str = "en",
         speed: float = 1.0,
-        cache_dir: Path = None,
+        cache_dir: Optional[Path] = None,
     ):
         """
         Initialize TTS engine.
         
         Args:
-            model: Model size (nano, micro, mini)
-            voice: Voice name
+            model: Backend to use (gtts, pyttsx3, edge)
+            voice: Voice/language code
             speed: Speech speed (0.5 - 2.0)
-            cache_dir: Directory to cache models
+            cache_dir: Directory for caching
         """
         self.model = model
         self.voice = voice
         self.speed = speed
         self.cache_dir = cache_dir or Path.home() / ".voicepipe"
-        self.tts_model = None
+        self.backend = None
         
-        # Validate voice
-        if voice not in AVAILABLE_VOICES:
-            raise ValueError(f"Unknown voice: {voice}. Available: {AVAILABLE_VOICES}")
-        
-        # Validate model
-        if model not in KITTEN_MODELS:
-            raise ValueError(f"Unknown model: {model}. Available: {list(KITTEN_MODELS.keys())}")
-        
-        # Initialize
-        self._init_model()
+        # Initialize backend
+        self._init_backend()
     
-    def _init_model(self):
-        """Initialize KittenTTS model."""
-        # Try importing KittenTTS
-        try:
-            from kittentts import KittenTTS
-            
-            model_name = KITTEN_MODELS[self.model]["name"]
-            logger.info(f"Loading KittenTTS model: {model_name}")
-            
-            self.tts_model = KittenTTS(model_name)
-            logger.info("KittenTTS loaded successfully")
-            
-        except ImportError:
-            logger.warning("KittenTTS not installed, using fallback")
-            self.tts_model = None
-            
-            # Try gTTS as fallback
+    def _init_backend(self):
+        """Initialize TTS backend."""
+        backends = ["gtts", "edge", "pyttsx3"]
+        
+        for backend in backends:
             try:
-                from gtts import gTTS
-                self._fallback = "gtts"
-                logger.info("Using gTTS fallback")
+                if backend == "gtts":
+                    from gtts import gTTS
+                    self.backend = "gtts"
+                    logger.info("Using gTTS backend")
+                    return
+                elif backend == "edge":
+                    from edge_tts import Communicate
+                    self.backend = "edge"
+                    logger.info("Using edge-tts backend")
+                    return
+                elif backend == "pyttsx3":
+                    import pyttsx3
+                    engine = pyttsx3.init()
+                    self.backend = "pyttsx3"
+                    self._pyttsx3_engine = engine
+                    logger.info("Using pyttsx3 backend")
+                    return
             except ImportError:
-                raise RuntimeError(
-                    "Neither KittenTTS nor gTTS available. "
-                    "Install with: pip install kittentts gtts"
-                )
-        except Exception as e:
-            logger.error(f"Failed to load KittenTTS: {e}")
-            raise
+                continue
+        
+        raise RuntimeError(
+            "No TTS backend available. Install one of:\n"
+            "  pip install gtts        # Google TTS (online)\n"
+            "  pip install edge-tts    # Microsoft Edge TTS (online)\n"
+            "  pip install pyttsx3     # Offline system TTS"
+        )
     
     def speak(self, text: str) -> bytes:
         """
@@ -109,122 +102,190 @@ class TTSEngine:
             text: Text to convert
             
         Returns:
-            Audio bytes (WAV format, 24kHz, 16-bit)
+            Audio bytes (WAV format, 16kHz, 16-bit mono)
         """
-        if self.tts_model:
-            return self._speak_kittentts(text)
-        elif hasattr(self, '_fallback') and self._fallback == "gtts":
+        if self.backend == "gtts":
             return self._speak_gtts(text)
+        elif self.backend == "edge":
+            return self._speak_edge(text)
+        elif self.backend == "pyttsx3":
+            return self._speak_pyttsx3(text)
         else:
-            raise RuntimeError("No TTS engine available")
-    
-    def _speak_kittentts(self, text: str) -> bytes:
-        """Use KittenTTS to generate speech."""
-        try:
-            # Generate audio
-            audio = self.tts_model.generate(text, voice=self.voice, speed=self.speed)
-            
-            # Convert to WAV bytes
-            return self._audio_to_wav(audio)
-            
-        except Exception as e:
-            logger.error(f"KittenTTS generation failed: {e}")
-            raise RuntimeError(f"TTS generation failed: {e}")
+            raise RuntimeError(f"Unknown backend: {self.backend}")
     
     def _speak_gtts(self, text: str) -> bytes:
-        """Use gTTS as fallback."""
+        """Use Google TTS."""
         from gtts import gTTS
         
-        tts = gTTS(text)
-        
-        # Save to temp file
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-            temp_path = f.name
-        
         try:
-            tts.save(temp_path)
+            tts = gTTS(text=text, lang=self.voice.split("-")[0])
+            
+            # Save to temp mp3
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                mp3_path = f.name
+            
+            tts.save(mp3_path)
             
             # Convert to WAV
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
-                wav_path = wf.name
-            
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", temp_path, "-ar", "24000", "-ac", "1", wav_path],
-                check=True,
+            wav_path = mp3_path.replace(".mp3", ".wav")
+            result = subprocess.run(
+                ["ffmpeg", "-y", "-i", mp3_path, "-ar", "16000", "-ac", "1", wav_path],
                 capture_output=True,
             )
             
             with open(wav_path, "rb") as f:
-                audio_bytes = f.read()
+                audio = f.read()
             
-            os.unlink(temp_path)
-            os.unlink(wav_path)
+            # Cleanup
+            try:
+                os.unlink(mp3_path)
+                os.unlink(wav_path)
+            except:
+                pass
             
-            return audio_bytes
+            return audio
             
-        except FileNotFoundError:
-            raise RuntimeError("FFmpeg not found for audio conversion")
+        except Exception as e:
+            raise RuntimeError(f"gTTS failed: {e}")
     
-    def _audio_to_wav(self, audio: np.ndarray) -> bytes:
-        """Convert numpy audio to WAV bytes."""
-        # Convert to 16-bit
-        audio_int16 = (audio * 32767).astype(np.int16)
+    def _speak_edge(self, text: str) -> bytes:
+        """Use Microsoft Edge TTS."""
+        from edge_tts import Communicate
         
-        # Create WAV in memory
-        import io
+        try:
+            # Get voice
+            voices = EDGE_VOICES.get(self.voice, EDGE_VOICES["en"])
+            voice = voices[0]
+            
+            # Generate
+            import asyncio
+            import tempfile
+            
+            async def generate():
+                communicate = Communicate(text, voice)
+                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                    mp3_path = f.name
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        with open(mp3_path, "ab") as f:
+                            f.write(chunk["data"])
+                return mp3_path
+            
+            mp3_path = asyncio.run(generate())
+            
+            # Convert to WAV
+            wav_path = mp3_path.replace(".mp3", ".wav")
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", mp3_path, "-ar", "16000", "-ac", "1", wav_path],
+                capture_output=True,
+            )
+            
+            with open(wav_path, "rb") as f:
+                audio = f.read()
+            
+            # Cleanup
+            try:
+                os.unlink(mp3_path)
+                os.unlink(wav_path)
+            except:
+                pass
+            
+            return audio
+            
+        except Exception as e:
+            raise RuntimeError(f"edge-tts failed: {e}")
+    
+    def _speak_pyttsx3(self, text: str) -> bytes:
+        """Use pyttsx3 (offline)."""
+        import pyttsx3
         
-        buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as f:
-            f.setnchannels(1)  # Mono
-            f.setsampwidth(2)  # 16-bit
-            f.setframerate(24000)  # 24kHz
-            f.writeframes(audio_int16.tobytes())
-        
-        return buffer.getvalue()
+        try:
+            engine = pyttsx3.init()
+            
+            # Set properties
+            engine.setProperty("rate", int(150 * self.speed))
+            engine.setProperty("voice", self.voice)
+            
+            # Save to temp file
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                wav_path = f.name
+            
+            engine.save_to_file(text, wav_path)
+            engine.runAndWait()
+            
+            with open(wav_path, "rb") as f:
+                audio = f.read()
+            
+            try:
+                os.unlink(wav_path)
+            except:
+                pass
+            
+            return audio
+            
+        except Exception as e:
+            raise RuntimeError(f"pyttsx3 failed: {e}")
     
     def speak_to_file(self, text: str, output_path: str) -> str:
-        """
-        Convert text to speech and save to file.
-        
-        Args:
-            text: Text to convert
-            output_path: Path to save audio
-            
-        Returns:
-            Path to saved file
-        """
+        """Save TTS to file."""
         audio = self.speak(text)
         
-        # Save as WAV
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with wave.open(str(output_path), 'wb') as f:
+        with wave.open(str(output_path), "wb") as f:
             f.setnchannels(1)
             f.setsampwidth(2)
-            f.setframerate(24000)
-            
-            # Convert audio to 16-bit and write
-            if isinstance(audio, bytes):
-                # Already WAV, just write
-                # Need to extract data
-                import io
-                with wave.open(io.BytesIO(audio), 'rb') as wf:
-                    frames = wf.readframes(wf.getnframes())
-                    f.writeframes(frames)
+            f.setframerate(16000)
+            # Skip WAV header, write raw PCM
+            # Find where audio data starts (44 bytes for WAV header)
+            if audio[:4] == b"RIFF":
+                # Has WAV header, skip to data
+                f.write(audio[44:])
             else:
-                audio_int16 = (audio * 32767).astype(np.int16)
-                f.writeframes(audio_int16.tobytes())
+                f.write(audio)
         
         return str(output_path)
     
     def list_voices(self) -> List[str]:
-        """Get list of available voices."""
-        if self.tts_model and hasattr(self.tts_model, 'available_voices'):
-            return self.tts_model.available_voices
-        return AVAILABLE_VOICES
+        """List available voices."""
+        if self.backend == "gtts":
+            return ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh"]
+        elif self.backend == "edge":
+            result = []
+            for lang, voices in EDGE_VOICES.items():
+                result.extend(voices)
+            return result
+        elif self.backend == "pyttsx3":
+            import pyttsx3
+            engine = pyttsx3.init()
+            voices = engine.getProperty("voices")
+            return [v.id for v in voices]
+        return []
+
+
+def check_tts_available() -> dict:
+    """Check which TTS backends are available."""
+    backends = {"gtts": False, "edge": False, "pyttsx3": False}
     
-    def get_available_models(self) -> dict:
-        """Get information about available models."""
-        return KITTEN_MODELS
+    try:
+        import gtts
+        backends["gtts"] = True
+    except:
+        pass
+    
+    try:
+        import edge_tts
+        backends["edge"] = True
+    except:
+        pass
+    
+    try:
+        import pyttsx3
+        backends["pyttsx3"] = True
+    except:
+        pass
+    
+    return backends

@@ -1,9 +1,15 @@
 """
 VoicePipeline - Main orchestrator class
+One-command STT + TTS for any app
+
+Usage:
+    from voicepipe import VoicePipeline
+    voice = VoicePipeline()
+    text = voice.speech_to_text("audio.wav")
+    audio = voice.text_to_speech("Hello!")
 """
 import os
 import asyncio
-import subprocess
 import logging
 from pathlib import Path
 from typing import Optional, List, Union
@@ -13,13 +19,18 @@ logger = logging.getLogger("voicepipe")
 DEFAULT_CACHE_DIR = os.path.expanduser("~/.voicepipe")
 
 
+class VoicePipelineError(Exception):
+    """VoicePipeline error."""
+    pass
+
+
 class VoicePipeline:
     """
     Main class for VoicePipe - one-command voice integration.
     
     Usage:
         from voicepipe import VoicePipeline
-        voice = VoicePipeline()  # Auto-downloads models
+        voice = VoicePipeline()
         text = voice.speech_to_text("audio.wav")
         audio = voice.text_to_speech("Hello!")
     """
@@ -27,62 +38,101 @@ class VoicePipeline:
     def __init__(
         self,
         stt_model: str = "tiny",
-        tts_model: str = "nano",
-        tts_voice: str = "Bella",
+        tts_backend: str = "gtts",
+        tts_voice: str = "en",
         tts_speed: float = 1.0,
         language: str = "en",
         cache_dir: str = DEFAULT_CACHE_DIR,
-        auto_download: bool = True,
     ):
         """
         Initialize VoicePipeline.
         
         Args:
-            stt_model: whisper.cpp model (tiny, base, small)
-            tts_model: KittenTTS model (nano, micro, mini)
-            tts_voice: Voice name (Bella, Jasper, Luna, etc.)
+            stt_model: whisper model (tiny, base, small)
+            tts_backend: TTS backend (gtts, edge, pyttsx3)
+            tts_voice: Voice/language
             tts_speed: Speech speed (0.5 - 2.0)
-            language: Language code (en, etc.) or "auto"
-            cache_dir: Directory to cache models
-            auto_download: Auto-download models if not found
+            language: STT language
+            cache_dir: Model cache directory
         """
         self.stt_model = stt_model
-        self.tts_model = tts_model
+        self.tts_backend = tts_backend
         self.tts_voice = tts_voice
         self.tts_speed = tts_speed
         self.language = language
         self.cache_dir = Path(cache_dir)
         
-        # Initialize components
+        # Components (lazy loaded)
         self._stt = None
         self._tts = None
         
         # Create cache directory
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"VoicePipeline initialized (STT: {stt_model}, TTS: {tts_model})")
-        
-    def _init_stt(self):
-        """Lazy init STT engine."""
+        logger.info(f"VoicePipeline initialized (STT: {stt_model}, TTS: {tts_backend})")
+    
+    @property
+    def stt(self):
+        """Get STT engine (lazy init)."""
         if self._stt is None:
-            from voicepipe.stt import STTEngine
+            from voicepipe.stt import STTEngine, check_stt_available
+            
+            # Check what's available first
+            status = check_stt_available()
+            
+            if not status["whisper_found"]:
+                raise VoicePipelineError(
+                    "whisper-cli not found. Install from:\n"
+                    "  https://github.com/ggerganov/whisper.cpp\n"
+                    "Or: brew install whisper-cpp (macOS)"
+                )
+            
+            if not status["ffmpeg_found"]:
+                raise VoicePipelineError(
+                    "FFmpeg not found. Install:\n"
+                    "  macOS: brew install ffmpeg\n"
+                    "  Linux: sudo apt install ffmpeg\n"
+                    "  Windows: choco install ffmpeg"
+                )
+            
+            if not status["model_found"]:
+                logger.warning(
+                    f"STT model not found at {self.cache_dir}/models.\n"
+                    f"Will download on first use. Download models from:\n"
+                    f"  https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+                )
+            
             self._stt = STTEngine(
                 model=self.stt_model,
                 cache_dir=self.cache_dir,
                 language=self.language,
             )
+        
         return self._stt
     
-    def _init_tts(self):
-        """Lazy init TTS engine."""
+    @property
+    def tts(self):
+        """Get TTS engine (lazy init)."""
         if self._tts is None:
-            from voicepipe.tts import TTSEngine
+            from voicepipe.tts import TTSEngine, check_tts_available
+            
+            status = check_tts_available()
+            
+            if not any(status.values()):
+                raise VoicePipelineError(
+                    "No TTS backend available. Install one of:\n"
+                    "  pip install gtts        # Google TTS\n"
+                    "  pip install edge-tts    # Microsoft Edge TTS\n"
+                    "  pip install pyttsx3    # Offline system TTS"
+                )
+            
             self._tts = TTSEngine(
-                model=self.tts_model,
+                model=self.tts_backend,
                 voice=self.tts_voice,
                 speed=self.tts_speed,
                 cache_dir=self.cache_dir,
             )
+        
         return self._tts
     
     # ========================================================================
@@ -94,17 +144,18 @@ class VoicePipeline:
         Convert speech audio file to text.
         
         Args:
-            audio_path: Path to audio file (wav, mp3, ogg, etc.)
+            audio_path: Path to audio file
             
         Returns:
             Transcribed text
+            
+        Raises:
+            VoicePipelineError: If STT fails
         """
-        # Ensure audio is in correct format
-        audio_path = self._prepare_audio(audio_path)
-        
-        # Run STT
-        stt = self._init_stt()
-        return stt.transcribe(audio_path)
+        try:
+            return self.stt.transcribe(audio_path)
+        except Exception as e:
+            raise VoicePipelineError(f"STT failed: {e}")
     
     def speech_to_text_bytes(self, audio_data: bytes) -> str:
         """
@@ -116,16 +167,7 @@ class VoicePipeline:
         Returns:
             Transcribed text
         """
-        # Save to temp file
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(audio_data)
-            temp_path = f.name
-        
-        try:
-            return self.speech_to_text(temp_path)
-        finally:
-            os.unlink(temp_path)
+        return self.stt.transcribe_bytes(audio_data)
     
     async def speech_to_text_async(self, audio_path: str) -> str:
         """Async version of speech_to_text."""
@@ -141,13 +183,18 @@ class VoicePipeline:
         Convert text to speech audio.
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert
             
         Returns:
-            Audio bytes (WAV format, 24kHz)
+            Audio bytes (WAV format)
+            
+        Raises:
+            VoicePipelineError: If TTS fails
         """
-        tts = self._init_tts()
-        return tts.speak(text)
+        try:
+            return self.tts.speak(text)
+        except Exception as e:
+            raise VoicePipelineError(f"TTS failed: {e}")
     
     def text_to_speech_file(self, text: str, output_path: str) -> str:
         """
@@ -155,23 +202,16 @@ class VoicePipeline:
         
         Args:
             text: Text to convert
-            output_path: Path to save audio file
+            output_path: Output file path
             
         Returns:
             Path to saved file
         """
-        tts = self._init_tts()
-        return tts.speak_to_file(text, output_path)
+        return self.tts.speak_to_file(text, output_path)
     
     def list_voices(self) -> List[str]:
-        """
-        Get list of available TTS voices.
-        
-        Returns:
-            List of voice names
-        """
-        tts = self._init_tts()
-        return tts.list_voices()
+        """Get list of available TTS voices."""
+        return self.tts.list_voices()
     
     async def text_to_speech_async(self, text: str) -> bytes:
         """Async version of text_to_speech."""
@@ -182,70 +222,31 @@ class VoicePipeline:
     # Utility Methods
     # ========================================================================
     
-    def _prepare_audio(self, audio_path: str) -> str:
-        """Ensure audio is in correct format for processing."""
-        path = Path(audio_path)
-        
-        # Check if file exists
-        if not path.exists():
-            raise FileNotFoundError(f"Audio file not found: {audio_path}")
-        
-        # Convert to 16kHz mono WAV if needed
-        if path.suffix.lower() not in ['.wav']:
-            # Need to convert
-            wav_path = path.with_suffix('.wav')
-            self._convert_audio(str(path), str(wav_path), sample_rate=16000, mono=True)
-            return str(wav_path)
-        
-        return str(audio_path)
-    
-    def _convert_audio(
-        self, 
-        input_path: str, 
-        output_path: str, 
-        sample_rate: int = 16000,
-        mono: bool = True
-    ):
-        """Convert audio using FFmpeg."""
-        import subprocess
-        
-        mono_arg = "-ac 1" if mono else ""
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", input_path,
-            "-ar", str(sample_rate),
-            mono_arg,
-            "-c:a", "pcm_s16le",
-            output_path
-        ]
-        
-        try:
-            subprocess.run(cmd, check=True, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpeg conversion failed: {e.stderr.decode()}")
-            raise RuntimeError(f"Audio conversion failed: {e}")
-        except FileNotFoundError:
-            raise RuntimeError("FFmpeg not found. Install: brew install ffmpeg")
-    
     def get_status(self) -> dict:
         """Get status of voice pipeline."""
+        from voicepipe.stt import check_stt_available
+        from voicepipe.tts import check_tts_available
+        
+        stt_status = check_stt_available()
+        tts_status = check_tts_available()
+        
         return {
             "stt_model": self.stt_model,
-            "tts_model": self.tts_model,
+            "tts_backend": self.tts_backend,
             "tts_voice": self.tts_voice,
             "cache_dir": str(self.cache_dir),
-            "stt_ready": self._stt is not None,
-            "tts_ready": self._tts is not None,
+            "whisper_available": stt_status["whisper_found"],
+            "ffmpeg_available": stt_status["ffmpeg_found"],
+            "stt_model_downloaded": stt_status["model_found"],
+            "tts_backends": tts_status,
         }
     
     def cleanup(self):
         """Clean up resources."""
         self._stt = None
         self._tts = None
-        logger.info("VoicePipeline cleaned up")
 
 
-# Convenience function
 def create_voice_pipeline(**kwargs) -> VoicePipeline:
     """Create and return a VoicePipeline instance."""
     return VoicePipeline(**kwargs)

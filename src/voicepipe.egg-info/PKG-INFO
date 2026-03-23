@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: voicepipe
-Version: 0.1.0
+Version: 0.1.1
 Summary: One-command STT + TTS for any app
 Author-email: DanLab <dan@danlab.dev>
 License: MIT
@@ -9,7 +9,7 @@ Project-URL: Documentation, https://voicepipe.readthedocs.io
 Project-URL: Repository, https://github.com/danlab-ai/voicepipe
 Project-URL: Issues, https://github.com/danlab-ai/voicepipe/issues
 Keywords: stt,tts,speech,voice,whisper,kittentts,ai
-Classifier: Development Status :: 3 - Alpha
+Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Programming Language :: Python :: 3
@@ -21,15 +21,24 @@ Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: numpy>=1.20.0
-Provides-Extra: kittentts
-Requires-Dist: kittentts; extra == "kittentts"
+Provides-Extra: tts
+Requires-Dist: gtts; extra == "tts"
+Requires-Dist: edge-tts; extra == "tts"
+Requires-Dist: pyttsx3; extra == "tts"
 Provides-Extra: gtts
 Requires-Dist: gtts; extra == "gtts"
+Provides-Extra: edge
+Requires-Dist: edge-tts; extra == "edge"
+Provides-Extra: offline
+Requires-Dist: pyttsx3; extra == "offline"
+Provides-Extra: full
+Requires-Dist: gtts; extra == "full"
+Requires-Dist: edge-tts; extra == "full"
+Requires-Dist: pyttsx3; extra == "full"
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
 Requires-Dist: black>=23.0.0; extra == "dev"
-Requires-Dist: mypy>=1.0.0; extra == "dev"
 Requires-Dist: ruff>=0.1.0; extra == "dev"
 Dynamic: license-file
 

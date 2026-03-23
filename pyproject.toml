@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicepipe"
-version = "0.1.0"
+version = "0.1.1"
 description = "One-command STT + TTS for any app"
 readme = "README.md"
 license = {text = "MIT"}
@@ -13,7 +13,7 @@ authors = [
 ]
 keywords = ["stt", "tts", "speech", "voice", "whisper", "kittentts", "ai"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -28,14 +28,22 @@ dependencies = [
     "numpy>=1.20.0",
 ]
 
+# Optional dependencies for TTS backends
 [project.optional-dependencies]
-kittentts = ["kittentts"]
+# All TTS options
+tts = ["gtts", "edge-tts", "pyttsx3"]
+# Just gTTS (default)
 gtts = ["gtts"]
+# Just edge-tts
+edge = ["edge-tts"]
+# Just offline
+offline = ["pyttsx3"]
+# Full installation
+full = ["gtts", "edge-tts", "pyttsx3"]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "black>=23.0.0",
-    "mypy>=1.0.0",
     "ruff>=0.1.0",
 ]
 

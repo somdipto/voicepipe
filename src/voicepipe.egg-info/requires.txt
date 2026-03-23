@@ -4,11 +4,23 @@ numpy>=1.20.0
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
 black>=23.0.0
-mypy>=1.0.0
 ruff>=0.1.0
+
+[edge]
+edge-tts
+
+[full]
+gtts
+edge-tts
+pyttsx3
 
 [gtts]
 gtts
 
-[kittentts]
-kittentts
+[offline]
+pyttsx3
+
+[tts]
+gtts
+edge-tts
+pyttsx3
