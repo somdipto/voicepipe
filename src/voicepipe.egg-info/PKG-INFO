@@ -1,14 +1,13 @@
 Metadata-Version: 2.4
 Name: voicepipe
-Version: 0.1.1
-Summary: One-command STT + TTS for any app
+Version: 0.2.0
+Summary: One-command voice STT + TTS for any app
 Author-email: DanLab <dan@danlab.dev>
 License: MIT
 Project-URL: Homepage, https://github.com/danlab-ai/voicepipe
-Project-URL: Documentation, https://voicepipe.readthedocs.io
 Project-URL: Repository, https://github.com/danlab-ai/voicepipe
 Project-URL: Issues, https://github.com/danlab-ai/voicepipe/issues
-Keywords: stt,tts,speech,voice,whisper,kittentts,ai
+Keywords: stt,tts,speech,voice,whisper,ai,voice-agent
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: MIT License
@@ -21,16 +20,12 @@ Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: numpy>=1.20.0
-Provides-Extra: tts
-Requires-Dist: gtts; extra == "tts"
-Requires-Dist: edge-tts; extra == "tts"
-Requires-Dist: pyttsx3; extra == "tts"
-Provides-Extra: gtts
-Requires-Dist: gtts; extra == "gtts"
-Provides-Extra: edge
-Requires-Dist: edge-tts; extra == "edge"
-Provides-Extra: offline
-Requires-Dist: pyttsx3; extra == "offline"
+Provides-Extra: agent
+Requires-Dist: gtts; extra == "agent"
+Requires-Dist: edge-tts; extra == "agent"
+Requires-Dist: pyttsx3; extra == "agent"
+Provides-Extra: default
+Requires-Dist: gtts; extra == "default"
 Provides-Extra: full
 Requires-Dist: gtts; extra == "full"
 Requires-Dist: edge-tts; extra == "full"

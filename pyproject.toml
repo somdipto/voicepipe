@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicepipe"
-version = "0.1.1"
-description = "One-command STT + TTS for any app"
+version = "0.2.0"
+description = "One-command voice STT + TTS for any app"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "DanLab", email = "dan@danlab.dev"},
 ]
-keywords = ["stt", "tts", "speech", "voice", "whisper", "kittentts", "ai"]
+keywords = ["stt", "tts", "speech", "voice", "whisper", "ai", "voice-agent"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -28,17 +28,12 @@ dependencies = [
     "numpy>=1.20.0",
 ]
 
-# Optional dependencies for TTS backends
 [project.optional-dependencies]
-# All TTS options
-tts = ["gtts", "edge-tts", "pyttsx3"]
-# Just gTTS (default)
-gtts = ["gtts"]
-# Just edge-tts
-edge = ["edge-tts"]
-# Just offline
-offline = ["pyttsx3"]
-# Full installation
+# Full installation (includes agent)
+agent = ["gtts", "edge-tts", "pyttsx3"]
+# Default
+default = ["gtts"]
+# All TTS backends
 full = ["gtts", "edge-tts", "pyttsx3"]
 dev = [
     "pytest>=7.0.0",
@@ -49,7 +44,6 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/danlab-ai/voicepipe"
-Documentation = "https://voicepipe.readthedocs.io"
 Repository = "https://github.com/danlab-ai/voicepipe"
 Issues = "https://github.com/danlab-ai/voicepipe/issues"
 
@@ -59,9 +53,6 @@ voicepipe = "voicepipe.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.package-data]
-voicepipe = ["py.typed"]
-
 [tool.black]
 line-length = 100
 target-version = ["py38"]
@@ -69,9 +60,3 @@ target-version = ["py38"]
 [tool.ruff]
 line-length = 100
 target-version = "py38"
-
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false

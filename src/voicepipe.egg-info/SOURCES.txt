@@ -2,8 +2,10 @@ LICENSE
 README.md
 pyproject.toml
 src/voicepipe/__init__.py
+src/voicepipe/agent.py
 src/voicepipe/audio.py
 src/voicepipe/cli.py
+src/voicepipe/installer.py
 src/voicepipe/stt.py
 src/voicepipe/tts.py
 src/voicepipe/voice_pipeline.py
