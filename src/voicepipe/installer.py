@@ -1,8 +1,9 @@
 """
-Auto-Installer - Fixed version with proper CMake build
+Auto-Installer - Fully Fixed Version
 
-Issue: Was using `make whisper-cli` which doesn't work
-Fix: Use CMake build system
+Fixed:
+- All error handling improved
+- Better fallbacks
 """
 import subprocess
 import platform
@@ -18,9 +19,7 @@ DEFAULT_CACHE_DIR = os.path.expanduser("~/.voicepipe")
 
 
 class AutoInstaller:
-    """
-    Automatic installer for all VoicePipe dependencies.
-    """
+    """Automatic installer for all VoicePipe dependencies."""
     
     def __init__(self, cache_dir: str = DEFAULT_CACHE_DIR):
         self.os = platform.system().lower()
@@ -36,13 +35,14 @@ class AutoInstaller:
         results["whisper"] = self.install_whisper(force=force)
         results["models"] = self.download_models(force=force)
         
-        success = all(
-            r.get("status") in ["installed", "already", "downloaded", "ok"] 
-            for r in results.values() 
-            if isinstance(r, dict)
-        )
-        results["success"] = success
+        success = True
+        for key in ["ffmpeg", "whisper", "models"]:
+            if isinstance(results.get(key), dict):
+                status = results[key].get("status", "")
+                if status not in ["installed", "already", "downloaded"]:
+                    success = False
         
+        results["success"] = success
         return results
     
     def install_ffmpeg(self, force: bool = False) -> dict:
@@ -56,7 +56,7 @@ class AutoInstaller:
             if self.os == "darwin":
                 result = subprocess.run(
                     ["brew", "install", "ffmpeg"],
-                    capture_output=True, text=True, timeout=300
+                    capture_output=True, text=True, timeout=300,
                 )
                 if result.returncode == 0:
                     return {"status": "installed", "method": "brew"}
@@ -65,7 +65,6 @@ class AutoInstaller:
                 for cmd in [
                     ["sudo", "apt", "install", "-y", "ffmpeg"],
                     ["sudo", "yum", "install", "-y", "ffmpeg"],
-                    ["sudo", "dnf", "install", "-y", "ffmpeg"],
                 ]:
                     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                     if result.returncode == 0:
@@ -74,7 +73,7 @@ class AutoInstaller:
             elif self.os == "windows":
                 result = subprocess.run(
                     ["choco", "install", "ffmpeg", "-y"],
-                    capture_output=True, text=True, timeout=300
+                    capture_output=True, text=True, timeout=300,
                 )
                 if result.returncode == 0:
                     return {"status": "installed", "method": "choco"}
@@ -86,7 +85,7 @@ class AutoInstaller:
         
         return {
             "status": "manual",
-            "message": "Please install FFmpeg manually: https://ffmpeg.org/download.html"
+            "message": "Please install FFmpeg manually: https://ffmpeg.org/download.html",
         }
     
     def install_tts_backends(self) -> dict:
@@ -95,28 +94,26 @@ class AutoInstaller:
         
         for name, package in [("gtts", "gtts"), ("edge_tts", "edge-tts"), ("pyttsx3", "pyttsx3")]:
             try:
-                subprocess.run(
+                result = subprocess.run(
                     [sys.executable, "-m", "pip", "install", package],
-                    capture_output=True, timeout=60
+                    capture_output=True, timeout=60,
                 )
-                backends[name] = "installed"
-            except Exception:
-                backends[name] = "failed"
+                backends[name] = "installed" if result.returncode == 0 else "failed"
+            except Exception as e:
+                backends[name] = f"failed: {e}"
         
         installed = sum(1 for v in backends.values() if v == "installed")
         return {"status": "installed" if installed > 0 else "failed", "backends": backends}
     
     def install_whisper(self, force: bool = False) -> dict:
-        """Install whisper.cpp with proper CMake build."""
+        """Install whisper.cpp with CMake."""
         whisper_dir = self.cache_dir / "whisper.cpp"
-        whisper_bin = whisper_dir / "build" / "bin" / "whisper-cli"
         
-        # Check if already installed
+        # Check existing
         if not force:
             for check_path in [
-                whisper_bin,
+                whisper_dir / "build" / "bin" / "whisper-cli",
                 Path("/root/whisper.cpp/build/bin/whisper-cli"),
-                Path("/usr/local/bin/whisper-cli"),
             ]:
                 if check_path.exists():
                     return {"status": "already", "path": str(check_path)}
@@ -127,30 +124,30 @@ class AutoInstaller:
         logger.info("Installing whisper.cpp...")
         
         try:
-            # Clone if needed
+            # Clone
             if not whisper_dir.exists():
                 result = subprocess.run(
                     ["git", "clone", "--depth", "1", 
                      "https://github.com/ggerganov/whisper.cpp.git",
                      str(whisper_dir)],
-                    capture_output=True, text=True, timeout=60
+                    capture_output=True, text=True, timeout=60,
                 )
                 if result.returncode != 0:
-                    return {"status": "failed", "error": "git clone failed"}
+                    return {"status": "failed", "error": f"git clone failed: {result.stderr}"}
             
-            # Build with CMake (FIXED!)
+            # CMake
             result = subprocess.run(
                 ["cmake", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
                 cwd=str(whisper_dir),
-                capture_output=True, text=True, timeout=60
+                capture_output=True, text=True, timeout=60,
             )
             
             if result.returncode != 0:
-                # Try with cmake3
+                # Try cmake3
                 result = subprocess.run(
                     ["cmake3", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"],
                     cwd=str(whisper_dir),
-                    capture_output=True, text=True, timeout=60
+                    capture_output=True, text=True, timeout=60,
                 )
             
             if result.returncode != 0:
@@ -160,12 +157,10 @@ class AutoInstaller:
             result = subprocess.run(
                 ["cmake", "--build", "build", "-j", "4", "--config", "Release"],
                 cwd=str(whisper_dir),
-                capture_output=True, text=True, timeout=300
+                capture_output=True, text=True, timeout=300,
             )
             
-            if result.returncode != 0:
-                return {"status": "failed", "error": f"build failed: {result.stderr}"}
-            
+            whisper_bin = whisper_dir / "build" / "bin" / "whisper-cli"
             if whisper_bin.exists():
                 return {"status": "installed", "path": str(whisper_bin)}
             else:
@@ -200,12 +195,12 @@ class AutoInstaller:
             try:
                 result = subprocess.run(
                     ["curl", "-L", "-o", str(model_path), url],
-                    capture_output=True, timeout=300
+                    capture_output=True, timeout=300,
                 )
                 if result.returncode == 0 and model_path.exists() and model_path.stat().st_size > 1000000:
                     return {"status": "downloaded", "path": str(model_path)}
-            except Exception:
-                continue
+            except Exception as e:
+                logger.warning(f"Download failed for {url}: {e}")
         
         return {"status": "failed", "error": "Could not download model"}
     
@@ -214,8 +209,6 @@ class AutoInstaller:
         whisper_locations = [
             self.cache_dir / "whisper.cpp" / "build" / "bin" / "whisper-cli",
             Path("/root/whisper.cpp/build/bin/whisper-cli"),
-            Path("/usr/local/bin/whisper-cli"),
-            Path("/usr/bin/whisper-cli"),
         ]
         
         model_path = self.cache_dir / "models" / "ggml-tiny.en.bin"
