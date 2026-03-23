@@ -1,0 +1,15 @@
+LICENSE
+README.md
+pyproject.toml
+src/voicepipe/__init__.py
+src/voicepipe/audio.py
+src/voicepipe/cli.py
+src/voicepipe/stt.py
+src/voicepipe/tts.py
+src/voicepipe/voice_pipeline.py
+src/voicepipe.egg-info/PKG-INFO
+src/voicepipe.egg-info/SOURCES.txt
+src/voicepipe.egg-info/dependency_links.txt
+src/voicepipe.egg-info/entry_points.txt
+src/voicepipe.egg-info/requires.txt
+src/voicepipe.egg-info/top_level.txt

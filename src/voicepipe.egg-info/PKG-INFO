@@ -1,0 +1,207 @@
+Metadata-Version: 2.4
+Name: voicepipe
+Version: 0.1.0
+Summary: One-command STT + TTS for any app
+Author-email: DanLab <dan@danlab.dev>
+License: MIT
+Project-URL: Homepage, https://github.com/danlab-ai/voicepipe
+Project-URL: Documentation, https://voicepipe.readthedocs.io
+Project-URL: Repository, https://github.com/danlab-ai/voicepipe
+Project-URL: Issues, https://github.com/danlab-ai/voicepipe/issues
+Keywords: stt,tts,speech,voice,whisper,kittentts,ai
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20.0
+Provides-Extra: kittentts
+Requires-Dist: kittentts; extra == "kittentts"
+Provides-Extra: gtts
+Requires-Dist: gtts; extra == "gtts"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Dynamic: license-file
+
+# VoicePipe
+
+<p align="center">
+  <strong>One-command voice integration for any app</strong>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/voicepipe/">
+    <img src="https://img.shields.io/pypi/v/voicepipe.svg" alt="PyPI version">
+  </a>
+  <a href="https://pypi.org/project/voicepipe/">
+    <img src="https://img.shields.io/pypi/pyversions/voicepipe.svg" alt="Python versions">
+  </a>
+  <a href="https://github.com/danlab-ai/voicepipe/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/danlab-ai/voicepipe.svg" alt="License">
+  </a>
+</p>
+
+---
+
+## Overview
+
+VoicePipe provides **one-command** STT (Speech-to-Text) + TTS (Text-to-Speech) for any application. 
+
+- **STT**: whisper.cpp - fastest local speech recognition
+- **TTS**: KittenTTS - smallest neural TTS (15-80MB)
+
+## Installation
+
+```bash
+pip install voicepipe
+```
+
+## Quick Start
+
+```python
+from voicepipe import VoicePipeline
+
+# Initialize (auto-downloads models)
+voice = VoicePipeline()
+
+# Speech to Text
+text = voice.speech_to_text("audio.wav")
+print(f"You said: {text}")
+
+# Text to Speech
+audio = voice.text_to_speech("Hello, world!")
+```
+
+## Requirements
+
+- Python 3.8+
+- FFmpeg (for audio processing)
+
+## Install FFmpeg
+
+**macOS:**
+```bash
+brew install ffmpeg
+```
+
+**Linux:**
+```bash
+sudo apt install ffmpeg
+```
+
+**Windows:**
+```powershell
+choco install ffmpeg
+```
+
+## Configuration
+
+```python
+voice = VoicePipeline(
+    stt_model="tiny",        # tiny, base, small
+    tts_model="nano",        # nano, micro, mini
+    tts_voice="Bella",       # 8 voices available
+    tts_speed=1.0,          # 0.5 - 2.0
+    language="en",           # or "auto"
+    cache_dir="~/.voicepipe" # model cache
+)
+```
+
+## Available Voices
+
+- Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, Leo
+
+## Models
+
+### STT (whisper.cpp)
+| Model | Size | RAM | Speed |
+|-------|------|-----|-------|
+| tiny | 75MB | ~500MB | 10x realtime |
+| base | 142MB | ~1GB | 5x realtime |
+| small | 466MB | ~2GB | 2x realtime |
+
+### TTS (KittenTTS)
+| Model | Size | Quality |
+|-------|------|---------|
+| nano | 15MB | Good |
+| micro | 40MB | Better |
+| mini | 80MB | Best |
+
+## Use Cases
+
+### Chatbot with Voice
+```python
+@app.post("/voice/chat")
+async def voice_chat(audio: bytes):
+    # Convert speech to text
+    text = voice.speech_to_text_bytes(audio)
+    
+    # Get chatbot response
+    response = await chatbot.chat(text)
+    
+    # Convert response to speech
+    audio_response = voice.text_to_speech(response)
+    
+    return {"audio": audio_response}
+```
+
+### Voice Assistant
+```python
+async def run_assistant():
+    while True:
+        # Continuously listen and respond
+        text = await voice.speech_to_text_async(microphone_stream)
+        response = await assistant.respond(text)
+        voice.text_to_speech(response, play=True)
+```
+
+## API Reference
+
+### VoicePipeline
+
+| Method | Description |
+|--------|-------------|
+| `speech_to_text(audio_path)` | Convert audio file to text |
+| `speech_to_text_bytes(audio_data)` | Convert raw audio to text |
+| `text_to_speech(text)` | Convert text to audio bytes |
+| `text_to_speech_file(text, path)` | Convert text to audio file |
+| `list_voices()` | Get available TTS voices |
+| `get_status()` | Get pipeline status |
+
+## Development
+
+```bash
+# Clone repository
+git clone https://github.com/danlab-ai/voicepipe.git
+cd voicepipe
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black src/voicepipe
+ruff check src/voicepipe
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE)
+
+---
+
+<p align="center">
+  Built by <a href="https://danlab.dev">DanLab</a>
+</p>
