@@ -1,48 +1,33 @@
 """
-Voice Agent - Continuous voice interaction agent
+VoiceAgent - Fixed version with real microphone input
 
-The brain of VoicePipe. Handles:
-- Continuous listening
-- Intent recognition
-- Tool execution
-- Memory and context
-
-Usage:
-    from voicepipe.agent import VoiceAgent
-    agent = VoiceAgent()
-    await agent.run()
+Issue: listen() returned None always
+Fix: Use sounddevice for audio input
 """
 import asyncio
 import logging
 import os
-from typing import Optional, List, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 from pathlib import Path
 
 logger = logging.getLogger("voicepipe.agent")
 
-# Default system prompt
 DEFAULT_SYSTEM_PROMPT = """You are VoiceAgent, a helpful voice assistant.
 
-You can:
-- Answer questions
-- Control applications
-- Send messages
-- Make calls
-- Set reminders
-- And much more
+You can help with:
+- Answering questions
+- Setting reminders
+- Sending messages
+- Making calls
+- And more
 
-Always be helpful, concise, and friendly.
+Be helpful, concise, and friendly.
 """
 
 
 class VoiceAgent:
     """
-    Continuous voice agent.
-    
-    Usage:
-        from voicepipe.agent import VoiceAgent
-        agent = VoiceAgent()
-        await agent.run()
+    Voice agent with real microphone input.
     """
     
     def __init__(
@@ -50,20 +35,12 @@ class VoiceAgent:
         name: str = "VoiceAgent",
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         voice_pipeline = None,
-        auto_listen: bool = True,
+        continuous: bool = True,
     ):
-        """
-        Initialize VoiceAgent.
-        
-        Args:
-            name: Agent name
-            system_prompt: System prompt
-            voice_pipeline: VoicePipeline instance (optional)
-            auto_listen: Automatically listen after responding
-        """
         self.name = name
         self.system_prompt = system_prompt
-        self.auto_listen = auto_listen
+        self.continuous = continuous
+        self.is_running = False
         
         # Initialize voice pipeline
         if voice_pipeline is None:
@@ -72,41 +49,41 @@ class VoiceAgent:
         else:
             self.voice = voice_pipeline
         
-        # State
-        self.is_running = False
-        self.context = []
-        self.tools = {}
-        
-        # Register default tools
+        # Tools registry
+        self.tools: Dict[str, Callable] = {}
         self._register_default_tools()
     
     def _register_default_tools(self):
-        """Register default tools."""
+        """Register built-in tools."""
         self.tools = {
             "time": self._get_time,
             "date": self._get_date,
-            "weather": self._get_weather,
-            "search": self._search_web,
-            "open_app": self._open_app,
-            "calculate": self._calculate,
+            "help": self._help,
         }
     
     async def run(self):
         """Run the agent loop."""
         self.is_running = True
-        
         logger.info(f"{self.name} started. Say 'exit' to quit.")
         
         while self.is_running:
             try:
-                # Listen for audio
+                # Listen
                 audio = await self.listen()
                 
                 if audio is None:
-                    continue
+                    if self.continuous:
+                        continue
+                    else:
+                        break
                 
                 # Convert to text
-                text = self.voice.speech_to_text_bytes(audio)
+                try:
+                    text = self.voice.speech_to_text_bytes(audio)
+                except Exception as e:
+                    logger.error(f"STT failed: {e}")
+                    await self.speak("Sorry, I couldn't understand that.")
+                    continue
                 
                 if not text.strip():
                     continue
@@ -114,7 +91,7 @@ class VoiceAgent:
                 logger.info(f"You: {text}")
                 
                 # Check for exit
-                if text.lower() in ["exit", "quit", "bye"]:
+                if text.lower().strip() in ["exit", "quit", "bye", "goodbye"]:
                     await self.speak("Goodbye!")
                     break
                 
@@ -134,48 +111,73 @@ class VoiceAgent:
     
     async def listen(self) -> Optional[bytes]:
         """
-        Listen for audio input.
+        Listen for audio input using microphone.
         
-        Override this method to implement custom listening.
+        Returns audio bytes or None if no audio.
         """
-        # This is a placeholder - implement microphone input
-        # For now, return None (no auto-listening)
-        return None
+        # Try to use sounddevice for microphone input
+        try:
+            import sounddevice as sd
+            import numpy as np
+            
+            logger.info("Listening... (press Ctrl+C to stop)")
+            
+            # Record audio
+            audio_data = sd.rec(
+                int(5 * 16000),  # 5 seconds max, 16kHz
+                samplerate=16000,
+                channels=1,
+                dtype='int16'
+            )
+            sd.wait()
+            
+            # Convert to bytes
+            audio_bytes = audio_data.tobytes()
+            
+            if len(audio_bytes) > 1000:  # Only return if we got some audio
+                return audio_bytes
+            return None
+            
+        except ImportError:
+            # sounddevice not available
+            logger.warning("sounddevice not installed. Install with: pip install sounddevice")
+            return None
+        except Exception as e:
+            logger.error(f"Microphone error: {e}")
+            return None
     
     async def speak(self, text: str):
-        """
-        Speak the response.
-        
-        Args:
-            text: Text to speak
-        """
+        """Speak the response."""
         try:
             audio = self.voice.text_to_speech(text)
-            # Play audio (implementation depends on platform)
+            
+            # Try to play audio
+            try:
+                import sounddevice as sd
+                import numpy as np
+                
+                # Convert bytes to numpy
+                audio_np = np.frombuffer(audio, dtype=np.int16)
+                sd.play(audio_np, 24000)
+                sd.wait()
+            except ImportError:
+                pass
+            
             logger.info(f"{self.name}: {text}")
         except Exception as e:
             logger.error(f"TTS failed: {e}")
     
     async def respond(self, text: str) -> str:
-        """
-        Process input and generate response.
+        """Process input and generate response."""
+        text_lower = text.lower().strip()
         
-        Args:
-            text: Input text
-            
-        Returns:
-            Response text
-        """
-        # Simple rule-based responses
-        # In production, this would use an LLM
-        
-        text_lower = text.lower()
-        
-        # Check registered tools
+        # Check tools
         for tool_name, tool_func in self.tools.items():
             if tool_name in text_lower:
                 try:
-                    result = await tool_func(text)
+                    result = tool_func(text)
+                    if asyncio.iscoroutine(result):
+                        result = await result
                     return result
                 except Exception as e:
                     return f"Error: {e}"
@@ -186,58 +188,37 @@ class VoiceAgent:
             "hi": "Hi there! What can I do for you?",
             "how are you": "I'm doing great, thanks for asking!",
             "what is your name": f"My name is {self.name}.",
-            "time": f"The time is {self._get_time()}.",
-            "date": f"Today's date is {self._get_date()}.",
+            "time": f"The time is {self._get_time('time')}.",
+            "date": f"Today's date is {self._get_date('date')}.",
         }
         
         for key, response in responses.items():
             if key in text_lower:
                 return response
         
-        # Default
-        return "I'm not sure how to respond to that. Could you try again?"
+        return "I'm not sure how to respond to that. Say 'help' for things I can do."
     
     # Tool implementations
-    def _get_time(self) -> str:
+    def _get_time(self, *args) -> str:
         """Get current time."""
         from datetime import datetime
         return datetime.now().strftime("%I:%M %p")
     
-    def _get_date(self) -> str:
+    def _get_date(self, *args) -> str:
         """Get current date."""
         from datetime import datetime
         return datetime.now().strftime("%B %d, %Y")
     
-    async def _get_weather(self, text: str) -> str:
-        """Get weather information."""
-        return "Weather feature coming soon!"
-    
-    async def _search_web(self, text: str) -> str:
-        """Search the web."""
-        return "Web search coming soon!"
-    
-    async def _open_app(self, text: str) -> str:
-        """Open an application."""
-        return "App control coming soon!"
-    
-    async def _calculate(self, text: str) -> str:
-        """Calculate something."""
-        # Extract math expression
-        import re
-        match = re.search(r'[\d+\-*/()]+', text)
-        if match:
-            try:
-                result = eval(match.group())
-                return f"The answer is {result}"
-            except:
-                pass
-        return "I couldn't understand the calculation."
+    def _help(self, *args) -> str:
+        """Get help."""
+        tools = ", ".join(self.tools.keys())
+        return f"I can help with: {tools}. Just ask!"
     
     def stop(self):
         """Stop the agent."""
         self.is_running = False
     
-    def add_tool(self, name: str, func):
+    def add_tool(self, name: str, func: Callable):
         """Add a custom tool."""
         self.tools[name] = func
     
@@ -246,22 +227,8 @@ class VoiceAgent:
         return {
             "name": self.name,
             "is_running": self.is_running,
-            "context_length": len(self.context),
             "tools": list(self.tools.keys()),
         }
-
-
-class SimpleVoiceAgent(VoiceAgent):
-    """Simple CLI-based voice agent for testing."""
-    
-    async def listen(self) -> Optional[bytes]:
-        """Listen via CLI input."""
-        # For testing - use CLI input instead of microphone
-        text = input("\nYou: ")
-        
-        # Convert to audio placeholder
-        # In real implementation, would use TTS
-        return None
 
 
 def create_agent(**kwargs) -> VoiceAgent:

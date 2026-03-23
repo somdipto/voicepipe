@@ -1,44 +1,30 @@
 """
-VoicePipe CLI
-
-Usage:
-    voicepipe install    - Install all dependencies
-    voicepipe status    - Check installation status
-    voicepipe agent     - Start voice agent
-    voicepipe tts "text" - Text to speech
-    voicepipe stt file  - Speech to text
+VoicePipe CLI - Fixed version
 """
 import argparse
 import sys
+import wave
+from pathlib import Path
 from voicepipe import VoicePipeline
 from voicepipe.installer import AutoInstaller
 from voicepipe.agent import VoiceAgent
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="VoicePipe - One-command voice for any app"
-    )
+    parser = argparse.ArgumentParser(description="VoicePipe - One-command voice for any app")
+    subparsers = parser.add_subparsers(dest="command")
     
-    subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
-    # Install command
     install_parser = subparsers.add_parser("install", help="Install all dependencies")
     install_parser.add_argument("--force", action="store_true", help="Force reinstall")
     
-    # Status command
     subparsers.add_parser("status", help="Check installation status")
-    
-    # Agent command
     subparsers.add_parser("agent", help="Start voice agent")
     
-    # TTS command
     tts_parser = subparsers.add_parser("tts", help="Text to speech")
-    tts_parser.add_argument("text", help="Text to speak")
+    tts_parser.add_argument("text", nargs="+", help="Text to speak")
     tts_parser.add_argument("-o", "--output", default="output.wav", help="Output file")
     tts_parser.add_argument("-v", "--voice", default="en", help="Voice")
     
-    # STT command
     stt_parser = subparsers.add_parser("stt", help="Speech to text")
     stt_parser.add_argument("file", help="Audio file")
     stt_parser.add_argument("-o", "--output", help="Output file")
@@ -89,12 +75,32 @@ def main():
             print("\nStopped.")
     
     elif args.command == "tts":
-        print(f"Converting to speech: {args.text}")
+        text = " ".join(args.text)
+        print(f"Converting to speech: {text}")
         
         try:
             voice = VoicePipeline()
-            output = voice.text_to_speech_file(args.text, args.output)
-            print(f"✅ Saved to: {output}")
+            audio = voice.text_to_speech(text)
+            
+            # Fix: Proper WAV writing
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Check if audio has WAV header
+            if audio[:4] == b'RIFF':
+                # Has WAV header, save directly
+                with open(output_path, 'wb') as f:
+                    f.write(audio)
+            else:
+                # Raw PCM, create WAV
+                # Determine sample rate from backend (gTTS = 24kHz)
+                with wave.open(str(output_path), 'wb') as f:
+                    f.setnchannels(1)  # Mono
+                    f.setsampwidth(2)  # 16-bit
+                    f.setframerate(24000)  # 24kHz
+                    f.writeframes(audio)
+            
+            print(f"✅ Saved to: {output_path}")
         except Exception as e:
             print(f"❌ Error: {e}")
             sys.exit(1)
@@ -108,8 +114,7 @@ def main():
             print(f"You said: {text}")
             
             if args.output:
-                with open(args.output, "w") as f:
-                    f.write(text)
+                Path(args.output).write_text(text)
                 print(f"✅ Saved to: {args.output}")
         except Exception as e:
             print(f"❌ Error: {e}")
