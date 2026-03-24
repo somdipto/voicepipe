@@ -135,18 +135,15 @@ class VoiceAgent:
         except ImportError:
             logger.info("sounddevice not available - use CLI mode")
             return None
+        except OSError as e:
+            logger.info(f"No audio device: {e} - use CLI mode")
+            return None
         except Exception as e:
-            logger.error(f"sounddevice error: {e}")
+            logger.warning(f"Audio error: {e} - use CLI mode")
+            return None
         
-        # Fallback: ask for text input
-        try:
-            text = input("\nYou (type): ")
-            if text.strip():
-                # Convert text to audio for processing
-                return self._text_to_audio_placeholder(text)
-        except:
-            pass
-        
+        # No mic available - return None to trigger CLI mode
+        logger.info("No microphone available")
         return None
     
     def _text_to_audio_placeholder(self, text: str) -> bytes:

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: voicepipe
-Version: 0.7.0
+Version: 0.8.0
 Summary: One-command voice STT + TTS for any app
 Author-email: DanLab <dan@danlab.dev>
 License: MIT

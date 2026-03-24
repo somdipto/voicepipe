@@ -1,5 +1,5 @@
 """
-VoicePipe CLI - Fixed version
+VoicePipe CLI - Fixed version with text mode
 """
 import argparse
 import sys
@@ -19,6 +19,7 @@ def main():
     
     subparsers.add_parser("status", help="Check installation status")
     subparsers.add_parser("agent", help="Start voice agent")
+    subparsers.add_parser("chat", help="Chat with agent (text mode)")
     
     tts_parser = subparsers.add_parser("tts", help="Text to speech")
     tts_parser.add_argument("text", nargs="+", help="Text to speak")
@@ -63,9 +64,36 @@ def main():
         print(f"Model: {'✅' if status.get('model') else '❌'}")
         print(f"Cache: {status.get('cache_dir', 'unknown')}")
     
+    elif args.command == "chat":
+        print("=== VoicePipe Chat (Text Mode) ===")
+        print("Type 'exit' to quit\n")
+        
+        voice = VoicePipeline(auto_install=False)
+        agent = VoiceAgent(voice_pipeline=voice)
+        
+        while True:
+            try:
+                user_input = input("You: ")
+                if not user_input.strip():
+                    continue
+                if user_input.lower() in ["exit", "quit", "bye"]:
+                    print("Goodbye!")
+                    break
+                
+                # Get agent response
+                import asyncio
+                response = asyncio.run(agent.respond(user_input))
+                print(f"Bot: {response}\n")
+                
+            except KeyboardInterrupt:
+                print("\nGoodbye!")
+                break
+            except Exception as e:
+                print(f"Error: {e}")
+    
     elif args.command == "agent":
         print("Starting VoiceAgent...")
-        print("Press Ctrl+C to stop")
+        print("Note: Requires microphone. Use 'voicepipe chat' for text mode.")
         
         agent = VoiceAgent()
         try:
@@ -97,27 +125,30 @@ def main():
                 with wave.open(str(output_path), 'wb') as f:
                     f.setnchannels(1)  # Mono
                     f.setsampwidth(2)  # 16-bit
-                    f.setframerate(24000)  # 24kHz
+                    f.setframerate(24000)  # gTTS uses 24kHz
                     f.writeframes(audio)
             
             print(f"✅ Saved to: {output_path}")
+            
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
     
     elif args.command == "stt":
         print(f"Transcribing: {args.file}")
         
         try:
-            voice = VoicePipeline()
+            voice = VoicePipeline(auto_install=False)
             text = voice.speech_to_text(args.file)
             print(f"You said: {text}")
             
             if args.output:
-                Path(args.output).write_text(text)
+                with open(args.output, 'w') as f:
+                    f.write(text)
                 print(f"✅ Saved to: {args.output}")
+            
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"Error: {e}")
             sys.exit(1)
 
 
