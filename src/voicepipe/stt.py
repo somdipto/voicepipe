@@ -3,6 +3,7 @@ STT Engine - whisper.cpp wrapper - FIXED VERSION
 
 Fixed:
 - Removed bare except statements
+- Removed hardcoded paths
 - Added input validation
 - Better error handling
 """
@@ -49,11 +50,12 @@ class STTEngine:
         self._ensure_model()
     
     def _find_whisper(self) -> None:
-        """Find whisper CLI binary."""
+        """Find whisper CLI binary - portable path search."""
+        import shutil
+        
         search_paths = [
             self.cache_dir.parent / "whisper.cpp" / "build" / "bin" / "whisper-cli",
             Path.home() / "whisper.cpp" / "build" / "bin" / "whisper-cli",
-            Path("/root/whisper.cpp/build/bin/whisper-cli"),
             Path("/usr/local/bin/whisper-cli"),
             Path("/usr/bin/whisper-cli"),
         ]
@@ -64,14 +66,10 @@ class STTEngine:
                 logger.info(f"Found whisper at: {self.whisper_path}")
                 return
         
-        # Check PATH
-        result = subprocess.run(
-            ["which", "whisper-cli"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            self.whisper_path = result.stdout.strip()
+        # Check PATH using shutil.which (portable)
+        path_whisper = shutil.which("whisper-cli")
+        if path_whisper:
+            self.whisper_path = path_whisper
             logger.info(f"Found whisper in PATH: {self.whisper_path}")
             return
         
@@ -234,34 +232,21 @@ class STTEngine:
 
 def check_stt_available() -> dict:
     """Check if STT can be initialized."""
+    import shutil
+    
     result = {
         "whisper_found": False,
         "model_found": False,
         "ffmpeg_found": False,
     }
     
-    # Check whisper
-    try:
-        r = subprocess.run(["which", "whisper-cli"], capture_output=True)
-        if r.returncode == 0:
-            result["whisper_found"] = True
-    except Exception as e:
-        logger.debug(f"Error checking whisper: {e}")
+    # Check whisper using shutil.which (portable)
+    if shutil.which("whisper-cli"):
+        result["whisper_found"] = True
     
     # Check ffmpeg
-    try:
-        r = subprocess.run(["which", "ffmpeg"], capture_output=True)
-        if r.returncode == 0:
-            result["ffmpeg_found"] = True
-    except Exception as e:
-        logger.debug(f"Error checking ffmpeg: {e}")
-    
-    # Check default model
-    cache_dir = Path.home() / ".voicepipe" / "models"
-    if (cache_dir / "ggml-tiny.en.bin").exists():
-        result["model_found"] = True
-    
-    return result
+    if shutil.which("ffmpeg"):
+        result["ffmpeg_found"] = True
     
     # Check default model
     cache_dir = Path.home() / ".voicepipe" / "models"

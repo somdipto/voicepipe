@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicepipe"
-version = "0.6.0"
+version = "0.7.0"
 description = "One-command voice STT + TTS for any app"
 readme = "README.md"
 license = {text = "MIT"}

@@ -261,24 +261,53 @@ class VoiceAgent:
         return None
     
     def _calculate(self, text: str) -> str:
-        """Simple calculator."""
+        """Simple calculator with safe parsing."""
         import re
+        import ast
+        import operator
         
-        # Look for math expression
         text_lower = text.lower()
         
-        # Common patterns
         if "calculate" in text_lower or "what is" in text_lower or "how much is" in text_lower:
-            # Try to extract numbers and operators
-            expression = re.findall(r'[\d\.\+\-\*\/\(\)]+', text)
+            # Extract only numbers and operators
+            expression = re.findall(r'[\d\.\+\-\*\/\(\)\s]+', text)
             
             if expression:
                 try:
-                    expr = "".join(expression)
-                    result = eval(expr)
+                    expr = "".join(expression).strip()
+                    # Safe evaluation using ast.literal_eval with limited operators
+                    allowed_ops = {
+                        ast.Add: operator.add,
+                        ast.Sub: operator.sub,
+                        ast.Mult: operator.mul,
+                        ast.Div: operator.truediv,
+                        ast.Pow: operator.pow,
+                    }
+                    
+                    def safe_eval(node):
+                        if isinstance(node, ast.Constant):
+                            return node.value
+                        elif isinstance(node, ast.BinOp):
+                            left = safe_eval(node.left)
+                            right = safe_eval(node.right)
+                            op_type = type(node.op)
+                            if op_type in allowed_ops:
+                                return allowed_ops[op_type](left, right)
+                            raise ValueError(f"Unsupported operator: {op_type}")
+                        elif isinstance(node, ast.UnaryOp):
+                            if isinstance(node.op, ast.USub):
+                                return -safe_eval(node.operand)
+                            elif isinstance(node.op, ast.UAdd):
+                                return safe_eval(node.operand)
+                            raise ValueError(f"Unsupported unary: {type(node.op)}")
+                        else:
+                            raise ValueError(f"Unsupported: {type(node)}")
+                    
+                    tree = ast.parse(expr, mode='eval')
+                    result = safe_eval(tree.body)
                     return f"The answer is {result}"
-                except:
-                    pass
+                except Exception as e:
+                    return f"Could not calculate: {e}"
         
         return None
     

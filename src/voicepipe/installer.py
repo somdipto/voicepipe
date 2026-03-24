@@ -109,15 +109,14 @@ class AutoInstaller:
         """Install whisper.cpp with CMake."""
         whisper_dir = self.cache_dir / "whisper.cpp"
         
-        # Check existing
+        # Check existing - only use cache_dir and PATH
         if not force:
-            for check_path in [
-                whisper_dir / "build" / "bin" / "whisper-cli",
-                Path("/root/whisper.cpp/build/bin/whisper-cli"),
-            ]:
+            if whisper_dir.exists():
+                check_path = whisper_dir / "build" / "bin" / "whisper-cli"
                 if check_path.exists():
                     return {"status": "already", "path": str(check_path)}
             
+            # Check PATH
             if shutil.which("whisper-cli"):
                 return {"status": "already", "path": shutil.which("whisper-cli")}
         
@@ -206,30 +205,35 @@ class AutoInstaller:
     
     def check_status(self) -> dict:
         """Check installation status."""
-        whisper_locations = [
-            self.cache_dir / "whisper.cpp" / "build" / "bin" / "whisper-cli",
-            Path("/root/whisper.cpp/build/bin/whisper-cli"),
-        ]
+        whisper_locations = []
+        
+        # Check cache_dir location
+        if self.cache_dir.exists():
+            whisper_locations.append(self.cache_dir / "whisper.cpp" / "build" / "bin" / "whisper-cli")
+        
+        # Also check PATH
+        path_whisper = shutil.which("whisper-cli")
+        if path_whisper:
+            whisper_locations.append(Path(path_whisper))
         
         model_path = self.cache_dir / "models" / "ggml-tiny.en.bin"
         
         return {
             "os": self.os,
             "ffmpeg": bool(shutil.which("ffmpeg")),
-            "whisper": any(p.exists() for p in whisper_locations) or bool(shutil.which("whisper-cli")),
+            "whisper": any(p.exists() for p in whisper_locations),
             "model": model_path.exists() and model_path.stat().st_size > 1000000,
             "cache_dir": str(self.cache_dir),
         }
     
     def get_whisper_path(self) -> str:
         """Get path to whisper-cli."""
-        for p in [
-            self.cache_dir / "whisper.cpp" / "build" / "bin" / "whisper-cli",
-            Path("/root/whisper.cpp/build/bin/whisper-cli"),
-        ]:
-            if p.exists():
-                return str(p)
+        # Check cache_dir location first
+        whisper_path = self.cache_dir / "whisper.cpp" / "build" / "bin" / "whisper-cli"
+        if whisper_path.exists():
+            return str(whisper_path)
         
+        # Check PATH
         path = shutil.which("whisper-cli")
         if path:
             return path
