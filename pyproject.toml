@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicepipe"
-version = "0.9.0"
+version = "1.0.0"
 description = "One-command voice STT + TTS for any app"
 readme = "README.md"
 license = {text = "MIT"}
@@ -29,12 +29,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Full installation (includes agent)
-agent = ["gtts", "edge-tts", "pyttsx3"]
-# Default
-default = ["gtts"]
-# All TTS backends
-full = ["gtts", "edge-tts", "pyttsx3"]
+# With Kittentts (recommended - local, offline)
+tts = ["kittentts>=0.8.1"]
+# Agent with voice (requires microphone)
+agent = ["kittentts>=0.8.1"]
+# Dev
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",

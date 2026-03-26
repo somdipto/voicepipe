@@ -46,15 +46,13 @@ class VoicePipeline:
     def __init__(
         self,
         stt_model: str = "tiny",
-        tts_backend: str = "gtts",
-        tts_voice: str = "en",
+        tts_voice: str = "Jasper",
         tts_speed: float = 1.0,
         language: str = "en",
         cache_dir: str = DEFAULT_CACHE_DIR,
         auto_install: bool = True,
     ):
         self.stt_model = stt_model
-        self.tts_backend = tts_backend
         self.tts_voice = tts_voice
         self.tts_speed = tts_speed
         self.language = language
@@ -146,7 +144,6 @@ class VoicePipeline:
         if self._tts is None:
             from voicepipe.tts import TTSEngine
             self._tts = TTSEngine(
-                model=self.tts_backend,
                 voice=self.tts_voice,
                 speed=self.tts_speed,
                 cache_dir=self.cache_dir,
@@ -199,7 +196,6 @@ class VoicePipeline:
         """Get pipeline status."""
         return {
             "stt_model": self.stt_model,
-            "tts_backend": self.tts_backend,
             "tts_voice": self.tts_voice,
             "cache_dir": str(self.cache_dir),
             **self.check_status(),

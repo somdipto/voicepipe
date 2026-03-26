@@ -24,7 +24,7 @@ class TestTTS:
         from voicepipe.tts import TTSEngine
         tts = TTSEngine()
         assert tts is not None
-        assert tts.backend is not None
+        assert tts._model is not None
     
     def test_tts_empty_text(self):
         """Test TTS rejects empty text."""
@@ -77,7 +77,7 @@ class TestTTS:
         from voicepipe.tts import check_tts_available
         result = check_tts_available()
         assert isinstance(result, dict)
-        assert "gtts" in result
+        assert "kittentts" in result
 
 
 class TestSTT:
