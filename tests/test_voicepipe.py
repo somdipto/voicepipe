@@ -1,5 +1,5 @@
 """
-VoicePipe Tests - Comprehensive Test Suite
+VoicePipe Tests - Clean Architecture
 """
 import pytest
 import os
@@ -16,48 +16,41 @@ class TestTTS:
     
     def test_tts_import(self):
         """Test TTS can be imported."""
-        from voicepipe.tts import TTSEngine
-        assert TTSEngine is not None
+        from voicepipe.tts import TTS
+        assert TTS is not None
     
     def test_tts_init(self):
         """Test TTS initialization."""
-        from voicepipe.tts import TTSEngine
-        tts = TTSEngine()
+        from voicepipe.tts import TTS
+        tts = TTS()
         assert tts is not None
-        assert tts._model is not None
+        assert tts.backend is not None
     
     def test_tts_empty_text(self):
         """Test TTS rejects empty text."""
-        from voicepipe.tts import TTSEngine, TTSError
-        tts = TTSEngine()
-        with pytest.raises(TTSError):
+        from voicepipe.tts import TTS
+        tts = TTS()
+        with pytest.raises(ValueError):
             tts.speak("")
-    
-    def test_tts_whitespace_only(self):
-        """Test TTS rejects whitespace-only text."""
-        from voicepipe.tts import TTSEngine, TTSError
-        tts = TTSEngine()
-        with pytest.raises(TTSError):
-            tts.speak("   ")
     
     def test_tts_valid_text(self):
         """Test TTS works with valid text."""
-        from voicepipe.tts import TTSEngine
-        tts = TTSEngine()
+        from voicepipe.tts import TTS
+        tts = TTS()
         audio = tts.speak("Hello world")
         assert audio is not None
         assert len(audio) > 0
     
-    def test_tts_speak_to_file(self):
+    def test_tts_save_to_file(self):
         """Test TTS to file."""
-        from voicepipe.tts import TTSEngine
-        tts = TTSEngine()
+        from voicepipe.tts import TTS
+        tts = TTS()
         
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             temp_path = f.name
         
         try:
-            result = tts.speak_to_file("Test", temp_path)
+            result = tts.save("Test", temp_path)
             assert os.path.exists(result)
             assert os.path.getsize(result) > 0
         finally:
@@ -66,18 +59,17 @@ class TestTTS:
     
     def test_list_voices(self):
         """Test listing voices."""
-        from voicepipe.tts import TTSEngine
-        tts = TTSEngine()
+        from voicepipe.tts import TTS
+        tts = TTS()
         voices = tts.list_voices()
         assert voices is not None
         assert len(voices) > 0
     
-    def test_check_tts_available(self):
-        """Test TTS availability check."""
-        from voicepipe.tts import check_tts_available
-        result = check_tts_available()
-        assert isinstance(result, dict)
-        assert "kittentts" in result
+    def test_detect_tts(self):
+        """Test TTS detection."""
+        from voicepipe.tts import detect_tts
+        result = detect_tts()
+        assert result is not None
 
 
 class TestSTT:
@@ -85,72 +77,31 @@ class TestSTT:
     
     def test_stt_import(self):
         """Test STT can be imported."""
-        from voicepipe.stt import STTEngine
-        assert STTEngine is not None
+        from voicepipe.stt import STT
+        assert STT is not None
     
-    def test_check_stt_available(self):
-        """Test STT availability check."""
-        from voicepipe.stt import check_stt_available
-        result = check_stt_available()
-        assert isinstance(result, dict)
-        assert "whisper_found" in result
-        assert "ffmpeg_found" in result
+    def test_detect_stt(self):
+        """Test STT detection."""
+        from voicepipe.stt import detect_stt
+        result = detect_stt()
+        assert result is not None
 
 
 class TestInstaller:
-    """Test Auto-Installer."""
+    """Test Installer."""
     
     def test_installer_import(self):
         """Test Installer can be imported."""
-        from voicepipe.installer import AutoInstaller
-        assert AutoInstaller is not None
-    
-    def test_installer_init(self):
-        """Test Installer initialization."""
-        from voicepipe.installer import AutoInstaller
-        installer = AutoInstaller()
-        assert installer is not None
-        assert installer.cache_dir is not None
+        from voicepipe.installer import install_all
+        assert install_all is not None
     
     def test_check_status(self):
         """Test status check."""
-        from voicepipe.installer import AutoInstaller
-        installer = AutoInstaller()
-        status = installer.check_status()
+        from voicepipe.installer import check_status
+        status = check_status()
         assert isinstance(status, dict)
-        assert "os" in status
-        assert "ffmpeg" in status
-        assert "whisper" in status
-
-
-class TestVoicePipeline:
-    """Test VoicePipeline integration."""
-    
-    def test_pipeline_import(self):
-        """Test pipeline can be imported."""
-        from voicepipe import VoicePipeline
-        assert VoicePipeline is not None
-    
-    def test_pipeline_init(self):
-        """Test pipeline initialization."""
-        from voicepipe import VoicePipeline
-        vp = VoicePipeline(auto_install=False)
-        assert vp is not None
-    
-    def test_pipeline_status(self):
-        """Test pipeline status."""
-        from voicepipe import VoicePipeline
-        vp = VoicePipeline(auto_install=False)
-        status = vp.check_status()
-        assert isinstance(status, dict)
-    
-    def test_tts_works(self):
-        """Test pipeline TTS works."""
-        from voicepipe import VoicePipeline
-        vp = VoicePipeline()
-        audio = vp.text_to_speech("test")
-        assert audio is not None
-        assert len(audio) > 0
+        assert "stt" in status
+        assert "tts" in status
 
 
 class TestCLI:
@@ -162,45 +113,34 @@ class TestCLI:
         assert main is not None
 
 
-class TestAgent:
-    """Test VoiceAgent."""
+class TestVoicePipe:
+    """Test main VoicePipe module."""
     
-    def test_agent_import(self):
-        """Test agent can be imported."""
-        from voicepipe.agent import VoiceAgent
-        assert VoiceAgent is not None
+    def test_version(self):
+        """Test version."""
+        from voicepipe import __version__
+        assert __version__ == "1.1.0"
     
-    def test_agent_init(self):
-        """Test agent initialization."""
-        from voicepipe import VoicePipeline
-        from voicepipe.agent import VoiceAgent
-        
-        vp = VoicePipeline(auto_install=False)
-        agent = VoiceAgent(voice_pipeline=vp)
-        assert agent is not None
-        assert agent.name == "VoiceAgent"
+    def test_lazy_tts(self):
+        """Test lazy TTS import."""
+        from voicepipe import create_tts
+        speaker = create_tts()
+        assert speaker is not None
     
-    def test_agent_status(self):
-        """Test agent status."""
-        from voicepipe import VoicePipeline
-        from voicepipe.agent import VoiceAgent
-        
-        vp = VoicePipeline(auto_install=False)
-        agent = VoiceAgent(voice_pipeline=vp)
-        status = agent.get_status()
-        assert isinstance(status, dict)
-        assert "name" in status
-        assert "is_running" in status
+    def test_lazy_stt(self):
+        """Test lazy STT import."""
+        from voicepipe import create_stt
+        listener = create_stt()
+        assert listener is not None
     
-    def test_agent_tools(self):
-        """Test agent has tools."""
-        from voicepipe import VoicePipeline
-        from voicepipe.agent import VoiceAgent
-        
-        vp = VoicePipeline(auto_install=False)
-        agent = VoiceAgent(voice_pipeline=vp)
-        assert "time" in agent.tools
-        assert "date" in agent.tools
+    def test_status(self):
+        """Test status function."""
+        from voicepipe import status
+        result = status()
+        assert isinstance(result, dict)
+        assert "stt" in result
+        assert "tts" in result
+        assert "version" in result
 
 
 if __name__ == "__main__":

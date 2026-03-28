@@ -4,58 +4,69 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voicepipe"
-version = "1.0.0"
-description = "One-command voice STT + TTS for any app"
+version = "1.1.0"
+description = "One-command voice (STT + TTS) for any app"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "DanLab", email = "dan@danlab.dev"},
 ]
-keywords = ["stt", "tts", "speech", "voice", "whisper", "ai", "voice-agent"]
+requires-python = ">=3.10"
+keywords = ["stt", "tts", "speech", "voice", "whisper", "ai"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 dependencies = [
-    "numpy>=1.20.0",
+    "numpy>=1.20",
+    "requests>=2.28",
 ]
 
 [project.optional-dependencies]
-# With Kittentts (recommended - local, offline)
-tts = ["kittentts>=0.8.1"]
-# Agent with voice (requires microphone)
-agent = ["kittentts>=0.8.1"]
+# Install with: pip install voicepipe[all]
+all = [
+    "faster-whisper>=1.0.0",
+    "sounddevice>=0.4.0",
+    "gtts>=2.3.0",
+    "edge-tts>=6.0.0",
+    "pyttsx3>=2.90",
+]
+# For builders/agents: pip install voicepipe[build]
+build = [
+    "faster-whisper>=1.0.0",
+    "sounddevice>=0.4.0",
+    "gtts>=2.3.0",
+    "edge-tts>=6.0.0",
+]
 # Dev
 dev = [
     "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
 ]
 
-[project.urls]
-Homepage = "https://github.com/danlab-ai/voicepipe"
-Repository = "https://github.com/danlab-ai/voicepipe"
-Issues = "https://github.com/danlab-ai/voicepipe/issues"
-
 [project.scripts]
 voicepipe = "voicepipe.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/somdipto/voicepipe"
+Repository = "https://github.com/somdipto/voicepipe"
+Issues = "https://github.com/somdipto/voicepipe/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.black]
 line-length = 100
-target-version = ["py38"]
+target-version = ["py310"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"

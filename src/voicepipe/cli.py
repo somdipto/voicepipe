@@ -1,34 +1,34 @@
-"""
-VoicePipe CLI - Fixed version with text mode
-"""
-import argparse
+"""VoicePipe CLI - One command for everything."""
+
 import sys
+import argparse
 import wave
 from pathlib import Path
-from voicepipe import VoicePipeline
-from voicepipe.installer import AutoInstaller
-from voicepipe.agent import VoiceAgent
 
 
 def main():
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(description="VoicePipe - One-command voice for any app")
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
-    install_parser = subparsers.add_parser("install", help="Install all dependencies")
-    install_parser.add_argument("--force", action="store_true", help="Force reinstall")
+    # install
+    subparsers.add_parser("install", help="Install system dependencies")
     
-    subparsers.add_parser("status", help="Check installation status")
-    subparsers.add_parser("agent", help="Start voice agent")
-    subparsers.add_parser("chat", help="Chat with agent (text mode)")
-    
+    # tts
     tts_parser = subparsers.add_parser("tts", help="Text to speech")
     tts_parser.add_argument("text", nargs="+", help="Text to speak")
     tts_parser.add_argument("-o", "--output", default="output.wav", help="Output file")
+    tts_parser.add_argument("-b", "--backend", help="TTS backend (edge-tts, gtts, pyttsx3)")
     tts_parser.add_argument("-v", "--voice", default="en", help="Voice")
     
+    # stt
     stt_parser = subparsers.add_parser("stt", help="Speech to text")
     stt_parser.add_argument("file", help="Audio file")
-    stt_parser.add_argument("-o", "--output", help="Output file")
+    stt_parser.add_argument("-b", "--backend", help="STT backend (faster-whisper, whisper-cli)")
+    stt_parser.add_argument("-m", "--model", default="base", help="Model size (tiny, base, small)")
+    
+    # status
+    subparsers.add_parser("status", help="Check available backends")
     
     args = parser.parse_args()
     
@@ -37,119 +37,43 @@ def main():
         return
     
     if args.command == "install":
-        print("Installing all dependencies...")
-        installer = AutoInstaller()
-        results = installer.install_all(force=args.force)
-        
-        for key, result in results.items():
-            if isinstance(result, dict):
-                status = result.get("status", "unknown")
-            else:
-                status = str(result)
-            print(f"  {key}: {status}")
-        
-        if results.get("success"):
-            print("\n✅ Installation complete!")
-        else:
-            print("\n⚠️ Some installations failed. Check status with: voicepipe status")
-    
-    elif args.command == "status":
-        print("Checking status...")
-        installer = AutoInstaller()
-        status = installer.check_status()
-        
-        print(f"OS: {status.get('os', 'unknown')}")
-        print(f"FFmpeg: {'✅' if status.get('ffmpeg') else '❌'}")
-        print(f"Whisper: {'✅' if status.get('whisper') else '❌'}")
-        print(f"Model: {'✅' if status.get('model') else '❌'}")
-        print(f"Cache: {status.get('cache_dir', 'unknown')}")
-    
-    elif args.command == "chat":
-        print("=== VoicePipe Chat (Text Mode) ===")
-        print("Type 'exit' to quit\n")
-        
-        voice = VoicePipeline(auto_install=False)
-        agent = VoiceAgent(voice_pipeline=voice)
-        
-        while True:
-            try:
-                user_input = input("You: ")
-                if not user_input.strip():
-                    continue
-                if user_input.lower() in ["exit", "quit", "bye"]:
-                    print("Goodbye!")
-                    break
-                
-                # Get agent response
-                import asyncio
-                response = asyncio.run(agent.respond(user_input))
-                print(f"Bot: {response}\n")
-                
-            except KeyboardInterrupt:
-                print("\nGoodbye!")
-                break
-            except Exception as e:
-                print(f"Error: {e}")
-    
-    elif args.command == "agent":
-        print("Starting VoiceAgent...")
-        print("Note: Requires microphone. Use 'voicepipe chat' for text mode.")
-        
-        agent = VoiceAgent()
-        try:
-            import asyncio
-            asyncio.run(agent.run())
-        except KeyboardInterrupt:
-            print("\nStopped.")
+        from voicepipe.installer import install_all
+        install_all()
     
     elif args.command == "tts":
         text = " ".join(args.text)
         print(f"Converting to speech: {text}")
         
-        try:
-            voice = VoicePipeline()
-            audio = voice.text_to_speech(text)
-            
-            # Fix: Proper WAV writing
-            output_path = Path(args.output)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Check if audio has WAV header
-            if audio[:4] == b'RIFF':
-                # Has WAV header, save directly
-                with open(output_path, 'wb') as f:
-                    f.write(audio)
-            else:
-                # Raw PCM, create WAV
-                # Determine sample rate from backend (gTTS = 24kHz)
-                with wave.open(str(output_path), 'wb') as f:
-                    f.setnchannels(1)  # Mono
-                    f.setsampwidth(2)  # 16-bit
-                    f.setframerate(24000)  # gTTS uses 24kHz
-                    f.writeframes(audio)
-            
-            print(f"✅ Saved to: {output_path}")
-            
-        except Exception as e:
-            print(f"Error: {e}")
-            sys.exit(1)
+        from voicepipe.tts import TTS
+        tts = TTS(backend=args.backend, voice=args.voice)
+        audio = tts.speak(text)
+        
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path, "wb") as f:
+            f.write(audio)
+        
+        print(f"✅ Saved to: {output_path}")
     
     elif args.command == "stt":
         print(f"Transcribing: {args.file}")
         
-        try:
-            voice = VoicePipeline(auto_install=False)
-            text = voice.speech_to_text(args.file)
-            print(f"You said: {text}")
-            
-            if args.output:
-                with open(args.output, 'w') as f:
-                    f.write(text)
-                print(f"✅ Saved to: {args.output}")
-            
-        except Exception as e:
-            print(f"Error: {e}")
-            sys.exit(1)
+        from voicepipe.stt import STT
+        stt = STT(backend=args.backend, model=args.model)
+        text = stt.transcribe(args.file)
+        
+        print(f"You said: {text}")
+    
+    elif args.command == "status":
+        from voicepipe.installer import check_status
+        status = check_status()
+        
+        print("VoicePipe Status:")
+        print(f"  STT: {status['stt'] or '❌ Not available'}")
+        print(f"  TTS: {status['tts'] or '❌ Not available'}")
+        print(f"  ffmpeg: {'✅' if status['ffmpeg'] else '❌'}")
+        print(f"  espeak-ng: {'✅' if status['espeak-ng'] else '❌'}")
 
 
 if __name__ == "__main__":
