@@ -1,72 +1,90 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "voicepipe"
 version = "1.1.0"
-description = "One-command voice (STT + TTS) for any app"
+description = "Offline-first STT and TTS for agents. Whisper + edge-tts, zero config."
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
-    {name = "DanLab", email = "dan@danlab.dev"},
+    { name = "DanLab", email = "dan@danlab.dev" },
 ]
-requires-python = ">=3.10"
-keywords = ["stt", "tts", "speech", "voice", "whisper", "ai"]
+keywords = ["stt", "tts", "speech", "whisper", "voice", "audio", "transcription"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
 ]
-
-dependencies = [
-    "numpy>=1.20",
-    "requests>=2.28",
-]
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
 
 [project.optional-dependencies]
-# Install with: pip install voicepipe[all]
-all = [
-    "faster-whisper>=1.0.0",
-    "sounddevice>=0.4.0",
-    "gtts>=2.3.0",
-    "edge-tts>=6.0.0",
-    "pyttsx3>=2.90",
-]
-# For builders/agents: pip install voicepipe[build]
+# Full build — everything in one shot
 build = [
-    "faster-whisper>=1.0.0",
-    "sounddevice>=0.4.0",
-    "gtts>=2.3.0",
-    "edge-tts>=6.0.0",
+    "sounddevice",
+    "numpy",
+    "edge-tts>=7.0.0",
+    "gtts",
+    "pyttsx3",
+    "espeak-ng",
+    "faster-whisper",
 ]
-# Dev
+# STT extras
+stt = [
+    "sounddevice",
+    "numpy",
+    "faster-whisper",
+]
+# TTS extras
+tts = [
+    "edge-tts>=7.0.0",
+    "gtts",
+    "pyttsx3",
+]
+# Agent support
+agent = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+]
+# Full dev install
 dev = [
-    "pytest>=7.0.0",
-    "black>=23.0.0",
+    "voicepipe[build,agent]",
+    "pytest>=7.0",
     "ruff>=0.1.0",
 ]
 
 [project.scripts]
-voicepipe = "voicepipe.cli:main"
+voicepipe = "voicepipe.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/somdipto/voicepipe"
 Repository = "https://github.com/somdipto/voicepipe"
-Issues = "https://github.com/somdipto/voicepipe/issues"
+Documentation = "https://github.com/somdipto/voicepipe#readme"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/voicepipe"]
 
-[tool.black]
-line-length = 100
-target-version = ["py310"]
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+]
 
 [tool.ruff]
-line-length = 100
+line-length = 88
 target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
